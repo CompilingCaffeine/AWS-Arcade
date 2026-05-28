@@ -48,3 +48,28 @@ output "lambda_dlq_url" {
   value       = module.lambda_pipeline.dlq_url
 }
 
+output "user_pool_id" {
+  description = "Cognito User Pool ID."
+  value       = module.auth.user_pool_id
+}
+
+output "user_pool_issuer" {
+  description = "Cognito User Pool OIDC issuer URL."
+  value       = module.auth.user_pool_issuer
+}
+
+output "web_client_id" {
+  description = "Cognito web client ID for the Hosted UI / SPA."
+  value       = module.auth.web_client_id
+}
+
+output "hosted_ui_login_url" {
+  description = "Cognito Hosted UI login URL pre-filled for the portfolio callback."
+  value       = module.auth.hosted_ui_login_url
+}
+
+output "api_endpoint" {
+  description = "HTTP API base URL. POST {api_endpoint}/uploads with a Cognito JWT to get a presigned URL."
+  value       = module.api.api_endpoint
+}
+

@@ -82,3 +82,15 @@ variable "alarm_email" {
   default     = ""
 }
 
+variable "project_display_name" {
+  description = "Human-readable name shown in Cognito verification emails."
+  type        = string
+  default     = "Herzi Arcade"
+}
+
+variable "cognito_domain_prefix" {
+  description = "Cognito Hosted UI domain prefix (globally unique). Empty falls back to name_prefix-auth."
+  type        = string
+  default     = ""
+}
+

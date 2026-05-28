@@ -166,3 +166,31 @@ module "dns_records" {
   distribution_domain_name    = module.cdn.distribution_domain_name
   distribution_hosted_zone_id = module.cdn.distribution_hosted_zone_id
 }
+
+locals {
+  portfolio_origin = var.enable_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : "https://${module.cdn.distribution_domain_name}"
+}
+
+module "auth" {
+  source = "../../modules/auth"
+
+  name_prefix           = local.name_prefix
+  project_display_name  = var.project_display_name
+  cognito_domain_prefix = var.cognito_domain_prefix
+  callback_urls         = ["${local.portfolio_origin}/"]
+  logout_urls           = ["${local.portfolio_origin}/"]
+  tags                  = local.common_tags
+}
+
+module "api" {
+  source = "../../modules/api"
+
+  name_prefix        = local.name_prefix
+  source_dir         = "${path.root}/../../../lambdas/request_upload_url"
+  upload_bucket_name = module.storage.upload_bucket_id
+  upload_bucket_arn  = module.storage.upload_bucket_arn
+  cognito_client_id  = module.auth.web_client_id
+  cognito_issuer     = module.auth.user_pool_issuer
+  allowed_origins    = [local.portfolio_origin]
+  tags               = local.common_tags
+}

@@ -18,3 +18,7 @@ audit_log_retention_days = 90
 # Confirm the SNS subscription email from your inbox after first apply.
 alarm_email = ""
 
+project_display_name  = "Herzi Arcade"
+# Empty falls back to "<name_prefix>-auth". Must be globally unique.
+cognito_domain_prefix = ""
+

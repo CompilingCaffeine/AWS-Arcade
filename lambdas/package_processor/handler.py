@@ -3,6 +3,7 @@ import logging
 import mimetypes
 import os
 import posixpath
+import re
 import tempfile
 import time
 import urllib.parse
@@ -60,8 +61,24 @@ ALLOWED_EXTENSIONS = {
 }
 
 
+USER_KEY_RE = re.compile(
+    r"^incoming/(?P<user_sub>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/[a-zA-Z0-9._-]+\.zip$"
+)
+LEGACY_KEY_RE = re.compile(r"^incoming/[a-zA-Z0-9._-]+\.zip$")
+
+
 class PackageValidationError(Exception):
     pass
+
+
+def parse_upload_key(key):
+    """Return the uploading user's Cognito sub for namespaced keys, or None for legacy keys."""
+    match = USER_KEY_RE.match(key)
+    if match:
+        return match.group("user_sub")
+    if LEGACY_KEY_RE.match(key):
+        return None
+    raise PackageValidationError(f"Unexpected upload key shape: {key}")
 
 
 def handler(event, _context):
@@ -81,6 +98,8 @@ def process_upload(bucket, key):
         LOG.info("Skipping non-zip object s3://%s/%s", bucket, key)
         return {"bucket": bucket, "key": key, "status": "skipped"}
 
+    user_sub = parse_upload_key(key)
+
     with tempfile.TemporaryDirectory() as tmpdir:
         zip_path = os.path.join(tmpdir, "game.zip")
         download_zip(bucket, key, zip_path)
@@ -91,7 +110,7 @@ def process_upload(bucket, key):
 
         delete_prefix(SITE_BUCKET, deploy_prefix)
         upload_package_files(zip_path, package["files"], deploy_prefix)
-        item = upsert_catalog_item(manifest, bucket, key, deploy_prefix)
+        item = upsert_catalog_item(manifest, bucket, key, deploy_prefix, user_sub)
         write_catalog_json()
         create_invalidation(game_id)
 
@@ -208,7 +227,7 @@ def cache_control_for(filename):
     return "public,max-age=3600"
 
 
-def upsert_catalog_item(manifest, source_bucket, source_key, deploy_prefix):
+def upsert_catalog_item(manifest, source_bucket, source_key, deploy_prefix, user_sub=None):
     now = int(time.time())
     game_id = manifest["id"]
     url_path = f"/{deploy_prefix}"
@@ -229,6 +248,8 @@ def upsert_catalog_item(manifest, source_bucket, source_key, deploy_prefix):
         "updated_at": now,
         "status": "published",
     }
+    if user_sub:
+        item["source_user_sub"] = user_sub
 
     table = dynamodb.Table(CATALOG_TABLE)
     existing_created_at = get_existing_created_at(table, game_id)

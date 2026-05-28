@@ -213,6 +213,32 @@ def test_inspect_package_rejects_oversized_uncompressed(tmp_path, monkeypatch):
         handler.inspect_package(zip_path)
 
 
+# parse_upload_key
+
+
+def test_parse_upload_key_user_namespaced():
+    sub = "12345678-1234-1234-1234-123456789abc"
+    assert handler.parse_upload_key(f"incoming/{sub}/abc123.zip") == sub
+
+
+def test_parse_upload_key_legacy():
+    assert handler.parse_upload_key("incoming/sample-game.zip") is None
+
+
+@pytest.mark.parametrize(
+    "bad_key",
+    [
+        "uploads/game.zip",
+        "incoming/nested/path/game.zip",
+        "incoming/not-a-uuid/upload.zip",
+        "incoming/12345678-1234-1234-1234-123456789abc/sub/path.zip",
+    ],
+)
+def test_parse_upload_key_rejects_unexpected(bad_key):
+    with pytest.raises(handler.PackageValidationError):
+        handler.parse_upload_key(bad_key)
+
+
 # to_dynamodb_item / public_catalog_record — regression tests
 
 
