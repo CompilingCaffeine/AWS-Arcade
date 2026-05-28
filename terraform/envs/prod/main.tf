@@ -27,6 +27,7 @@ module "storage" {
   name_prefix           = local.name_prefix
   force_destroy         = var.force_destroy_buckets
   upload_retention_days = var.upload_retention_days
+  enable_access_logging = true
   access_logs_bucket    = module.observability.audit_bucket_id
   tags                  = local.common_tags
 }

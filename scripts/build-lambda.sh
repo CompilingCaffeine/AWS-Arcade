@@ -20,8 +20,8 @@ if [[ ! -f "$SCHEMA_FILE" ]]; then
   exit 1
 fi
 
-if command -v python3.12 >/dev/null 2>&1; then
-  PYTHON=python3.12
+if command -v python3.13 >/dev/null 2>&1; then
+  PYTHON=python3.13
 elif command -v python3 >/dev/null 2>&1; then
   PYTHON=python3
 else
@@ -43,7 +43,7 @@ if [[ -f "$REQ_FILE" ]] && grep -Eqv '^\s*(#|$)' "$REQ_FILE"; then
     --target "$BUILD_DIR" \
     --platform manylinux2014_x86_64 \
     --only-binary=:all: \
-    --python-version 3.12 \
+    --python-version 3.13 \
     --implementation cp \
     -r "$REQ_FILE"
 fi

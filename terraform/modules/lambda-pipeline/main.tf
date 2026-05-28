@@ -1,5 +1,5 @@
 locals {
-  function_name     = "${var.name_prefix}-package-processor"
+  function_name     = "${var.name_prefix}-processor"
   build_script      = abspath("${path.module}/../../../scripts/build-lambda.sh")
   lambda_source_dir = abspath(var.source_dir)
   lambda_schema     = abspath(var.schema_file)
@@ -7,7 +7,11 @@ locals {
 
   lambda_build_hash = sha256(join("", concat(
     [for f in fileset(var.source_dir, "*.py") : filesha256("${var.source_dir}/${f}")],
-    [filesha256("${var.source_dir}/requirements.txt"), filesha256(var.schema_file)],
+    [
+      filesha256("${var.source_dir}/requirements.txt"),
+      filesha256(var.schema_file),
+      filesha256(local.build_script),
+    ],
   )))
 
   frontend_files = fileset(var.frontend_source_dir, "**")
@@ -174,7 +178,7 @@ resource "aws_lambda_function" "package_processor" {
   function_name    = local.function_name
   role             = aws_iam_role.package_processor.arn
   handler          = "handler.handler"
-  runtime          = "python3.12"
+  runtime          = "python3.13"
   filename         = data.archive_file.package_processor.output_path
   source_code_hash = data.archive_file.package_processor.output_base64sha256
   memory_size      = var.lambda_memory_size

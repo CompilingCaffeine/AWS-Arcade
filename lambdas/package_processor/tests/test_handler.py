@@ -1,5 +1,6 @@
 import json
 import zipfile
+from decimal import Decimal
 
 import pytest
 
@@ -210,3 +211,29 @@ def test_inspect_package_rejects_oversized_uncompressed(tmp_path, monkeypatch):
     )
     with pytest.raises(handler.PackageValidationError, match="too large"):
         handler.inspect_package(zip_path)
+
+
+# to_dynamodb_item / public_catalog_record — regression tests
+
+
+def test_to_dynamodb_item_round_trips_decimal_from_existing_record():
+    item = {"game_id": "x", "updated_at": 1, "created_at": Decimal("1779944223")}
+    result = handler.to_dynamodb_item(item)
+    assert result["game_id"] == "x"
+    assert result["created_at"] == Decimal("1779944223")
+
+
+def test_public_catalog_record_handles_list_fields():
+    game = {
+        "game_id": "x",
+        "title": "Test",
+        "tags": ["arcade", "demo"],
+        "controls": ["mouse"],
+        "description": "",
+        "thumbnail_url": "",
+    }
+    record = handler.public_catalog_record(game)
+    assert record["tags"] == ["arcade", "demo"]
+    assert record["controls"] == ["mouse"]
+    assert "description" not in record
+    assert "thumbnail_url" not in record

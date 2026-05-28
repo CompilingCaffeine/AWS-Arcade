@@ -159,7 +159,7 @@ resource "aws_s3_bucket_policy" "uploads" {
 }
 
 resource "aws_s3_bucket_logging" "uploads" {
-  count = var.access_logs_bucket == "" ? 0 : 1
+  count = var.enable_access_logging ? 1 : 0
 
   bucket        = aws_s3_bucket.uploads.id
   target_bucket = var.access_logs_bucket
@@ -167,7 +167,7 @@ resource "aws_s3_bucket_logging" "uploads" {
 }
 
 resource "aws_s3_bucket_logging" "site" {
-  count = var.access_logs_bucket == "" ? 0 : 1
+  count = var.enable_access_logging ? 1 : 0
 
   bucket        = aws_s3_bucket.site.id
   target_bucket = var.access_logs_bucket

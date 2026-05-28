@@ -248,7 +248,10 @@ def get_existing_created_at(table, game_id):
 
 
 def to_dynamodb_item(value):
-    return json.loads(json.dumps(value), parse_float=Decimal)
+    return json.loads(
+        json.dumps(value, default=decimal_default),
+        parse_float=Decimal,
+    )
 
 
 def from_dynamodb_item(value):
@@ -299,7 +302,7 @@ def public_catalog_record(game):
         "updated_at",
         "created_at",
     ]
-    return {key: game.get(key) for key in allowed_keys if game.get(key) not in {None, ""}}
+    return {key: game[key] for key in allowed_keys if game.get(key) not in (None, "")}
 
 
 def create_invalidation(game_id):
