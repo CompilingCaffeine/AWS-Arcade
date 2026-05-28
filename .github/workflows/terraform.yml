@@ -64,6 +64,26 @@ jobs:
       - name: Terraform fmt
         run: terraform -chdir=${{ env.TF_WORKING_DIR }} fmt -check -recursive
 
+      - name: Setup tflint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.62.1
+
+      - name: Cache tflint plugins
+        uses: actions/cache@v4
+        with:
+          path: ~/.tflint.d/plugins
+          key: tflint-${{ hashFiles('.tflint.hcl') }}
+
+      - name: tflint init
+        run: tflint --init
+
+      - name: tflint
+        run: tflint --recursive
+
+      - name: Run checkov
+        run: pip install checkov && checkov --config-file .checkov.yml
+
       - name: Terraform init
         run: |
           terraform -chdir=${{ env.TF_WORKING_DIR }} init \
@@ -78,10 +98,55 @@ jobs:
         run: terraform -chdir=${{ env.TF_WORKING_DIR }} validate
 
       - name: Terraform plan
+        id: plan
         run: |
           terraform -chdir=${{ env.TF_WORKING_DIR }} plan \
             -input=false \
-            -out=tfplan
+            -no-color \
+            -out=tfplan \
+            | tee plan.txt
+
+      - name: Render plan for PR comment
+        if: github.event_name == 'pull_request'
+        run: terraform -chdir=${{ env.TF_WORKING_DIR }} show -no-color tfplan > plan-show.txt
+
+      - name: Comment plan on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const planRaw = fs.readFileSync('plan-show.txt', 'utf8');
+            const MAX = 60000;
+            const truncated = planRaw.length > MAX
+              ? planRaw.slice(0, MAX) + `\n\n... (truncated ${planRaw.length - MAX} chars)`
+              : planRaw;
+            const body = `## Terraform Plan\n\n<details>\n<summary>Plan output</summary>\n\n\`\`\`hcl\n${truncated}\n\`\`\`\n\n</details>`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c =>
+              c.user.type === 'Bot' && c.body && c.body.startsWith('## Terraform Plan')
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
       - name: Terraform apply
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

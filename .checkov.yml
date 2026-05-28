@@ -1,0 +1,67 @@
+framework:
+  - terraform
+directory:
+  - terraform
+quiet: true
+compact: true
+skip-download: true
+
+# Each skip below is a conscious trade-off, not an oversight.
+skip-check:
+  # Using AWS-managed AES256 encryption rather than customer-managed KMS keys
+  # to keep within Free Tier and avoid per-request KMS costs. Revisit if a
+  # compliance regime requires customer-managed keys.
+  - CKV_AWS_145   # S3 KMS CMK encryption
+  - CKV_AWS_119   # DynamoDB KMS CMK encryption
+  - CKV_AWS_158   # CloudWatch Logs KMS CMK encryption
+  - CKV_AWS_173   # Lambda environment variable KMS encryption
+  - CKV_AWS_35    # CloudTrail KMS CMK encryption
+
+  # Single-region by design for an MVP serverless platform.
+  - CKV_AWS_144   # S3 cross-region replication
+
+  # Documented as future work in docs/security.md.
+  - CKV_AWS_68    # CloudFront WAF
+  - CKV2_AWS_47   # CloudFront WAF Log4j rule
+
+  # Default CloudFront cert has fixed TLS support; we set TLSv1.2_2021 when a
+  # custom domain ACM cert is in use.
+  - CKV_AWS_174
+
+  # Single S3 origin is the design.
+  - CKV_AWS_310   # CloudFront origin failover
+  - CKV_AWS_374   # CloudFront geo restriction
+
+  # Lambda only calls S3, DynamoDB, CloudFront, SQS, CloudWatch, X-Ray APIs.
+  # A VPC adds NAT/ENI cost without a security benefit for this workload.
+  - CKV_AWS_117   # Lambda in a VPC
+
+  # Concurrency limit deliberately omitted; bursts are absorbed by Lambda's
+  # account-level limits and the DLQ catches failures.
+  - CKV_AWS_115
+
+  # Code signing is overkill for an internal Lambda built and deployed from
+  # the same repo as the infrastructure.
+  - CKV_AWS_272
+
+  # PITR is gated by the enable_catalog_pitr tfvar, off by default to stay
+  # within Free Tier.
+  - CKV_AWS_28
+
+  # CloudFront standard logging requires ACL-based delivery, which conflicts
+  # with the BucketOwnerEnforced audit bucket. Will revisit with v2 logging.
+  - CKV_AWS_86
+
+  # Event notifications are only required on the uploads bucket.
+  - CKV2_AWS_62
+
+  # CloudTrail SNS notifications fire on every log delivery, which is too
+  # noisy for human subscribers. CloudWatch Logs integration (CKV2_AWS_10)
+  # provides the same searchability with better signal.
+  - CKV_AWS_252
+
+  # The terraform-state bucket and the audit bucket are the bottommost log
+  # destinations in the architecture. They cannot meaningfully log to another
+  # bucket without circular dependencies. Data buckets (uploads, site) still
+  # enforce this check by delivering access logs to the audit bucket.
+  - CKV_AWS_18

@@ -8,11 +8,6 @@ variable "account_id" {
   type        = string
 }
 
-variable "aws_region" {
-  description = "Primary AWS region."
-  type        = string
-}
-
 variable "log_retention_days" {
   description = "Lifecycle expiration for audit logs in the shared bucket."
   type        = number
@@ -23,6 +18,18 @@ variable "alarm_email" {
   description = "Email subscribed to the SNS alarm topic. Empty disables subscription."
   type        = string
   default     = ""
+}
+
+variable "trail_is_multi_region" {
+  description = "Whether the CloudTrail trail captures events from every region."
+  type        = bool
+  default     = true
+}
+
+variable "trail_log_retention_days" {
+  description = "CloudWatch Logs retention for CloudTrail events."
+  type        = number
+  default     = 365
 }
 
 variable "force_destroy" {

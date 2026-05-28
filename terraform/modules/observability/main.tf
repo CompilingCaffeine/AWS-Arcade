@@ -160,16 +160,61 @@ resource "aws_s3_bucket_policy" "audit" {
   policy = data.aws_iam_policy_document.audit.json
 }
 
+resource "aws_cloudwatch_log_group" "trail" {
+  name              = "/aws/cloudtrail/${local.trail_name}"
+  retention_in_days = var.trail_log_retention_days
+  tags              = var.tags
+}
+
+data "aws_iam_policy_document" "trail_assume_role" {
+  statement {
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudtrail.amazonaws.com"]
+    }
+  }
+}
+
+resource "aws_iam_role" "trail_to_logs" {
+  name               = "${local.trail_name}-to-logs"
+  assume_role_policy = data.aws_iam_policy_document.trail_assume_role.json
+  tags               = var.tags
+}
+
+data "aws_iam_policy_document" "trail_to_logs" {
+  statement {
+    sid     = "WriteTrailLogs"
+    actions = ["logs:CreateLogStream", "logs:PutLogEvents"]
+    resources = [
+      "${aws_cloudwatch_log_group.trail.arn}:*",
+    ]
+  }
+}
+
+resource "aws_iam_role_policy" "trail_to_logs" {
+  name   = "${local.trail_name}-to-logs"
+  role   = aws_iam_role.trail_to_logs.id
+  policy = data.aws_iam_policy_document.trail_to_logs.json
+}
+
 resource "aws_cloudtrail" "this" {
   name                          = local.trail_name
   s3_bucket_name                = aws_s3_bucket.audit.id
   s3_key_prefix                 = "cloudtrail"
   include_global_service_events = true
-  is_multi_region_trail         = false
+  is_multi_region_trail         = var.trail_is_multi_region
   enable_log_file_validation    = true
+  cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.trail.arn}:*"
+  cloud_watch_logs_role_arn     = aws_iam_role.trail_to_logs.arn
   tags                          = var.tags
 
-  depends_on = [aws_s3_bucket_policy.audit]
+  depends_on = [
+    aws_s3_bucket_policy.audit,
+    aws_iam_role_policy.trail_to_logs,
+  ]
 }
 
 resource "aws_sns_topic" "alarms" {

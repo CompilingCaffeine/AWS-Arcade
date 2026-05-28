@@ -96,6 +96,32 @@ resource "aws_s3_bucket_lifecycle_configuration" "uploads" {
     noncurrent_version_expiration {
       noncurrent_days = 7
     }
+  }
+
+  rule {
+    id     = "abort-incomplete-uploads"
+    status = "Enabled"
+
+    filter {}
+
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 7
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "site" {
+  bucket = aws_s3_bucket.site.id
+
+  rule {
+    id     = "expire-old-versions"
+    status = "Enabled"
+
+    filter {}
+
+    noncurrent_version_expiration {
+      noncurrent_days = 30
+    }
 
     abort_incomplete_multipart_upload {
       days_after_initiation = 7

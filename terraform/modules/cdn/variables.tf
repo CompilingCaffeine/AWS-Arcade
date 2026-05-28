@@ -8,11 +8,6 @@ variable "site_bucket_id" {
   type        = string
 }
 
-variable "site_bucket_arn" {
-  description = "Site S3 bucket ARN."
-  type        = string
-}
-
 variable "site_bucket_regional_domain_name" {
   description = "Site S3 regional domain name."
   type        = string

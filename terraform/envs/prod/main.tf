@@ -15,7 +15,6 @@ module "observability" {
 
   name_prefix        = local.name_prefix
   account_id         = data.aws_caller_identity.current.account_id
-  aws_region         = var.aws_region
   log_retention_days = var.audit_log_retention_days
   alarm_email        = var.alarm_email
   force_destroy      = var.force_destroy_buckets
@@ -58,7 +57,6 @@ module "cdn" {
 
   name_prefix                      = local.name_prefix
   site_bucket_id                   = module.storage.site_bucket_id
-  site_bucket_arn                  = module.storage.site_bucket_arn
   site_bucket_regional_domain_name = module.storage.site_bucket_regional_domain_name
   aliases                          = local.domain_names
   acm_certificate_arn              = var.enable_custom_domain ? module.certificate[0].certificate_arn : null

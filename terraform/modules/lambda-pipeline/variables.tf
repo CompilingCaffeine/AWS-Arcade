@@ -81,6 +81,12 @@ variable "dlq_message_retention_seconds" {
   default     = 1209600
 }
 
+variable "log_retention_days" {
+  description = "CloudWatch Logs retention for the Lambda function."
+  type        = number
+  default     = 365
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

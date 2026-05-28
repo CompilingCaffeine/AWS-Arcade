@@ -48,7 +48,7 @@ data "archive_file" "package_processor" {
 
 resource "aws_cloudwatch_log_group" "package_processor" {
   name              = "/aws/lambda/${local.function_name}"
-  retention_in_days = 14
+  retention_in_days = var.log_retention_days
   tags              = var.tags
 }
 
@@ -149,6 +149,12 @@ data "aws_iam_policy_document" "package_processor" {
     actions   = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.dlq.arn]
   }
+
+  statement {
+    sid     = "WriteXRayTraceSegments"
+    actions = ["xray:PutTraceSegments", "xray:PutTelemetryRecords"]
+    resources = ["*"]
+  }
 }
 
 resource "aws_sqs_queue" "dlq" {
@@ -185,6 +191,10 @@ resource "aws_lambda_function" "package_processor" {
 
   dead_letter_config {
     target_arn = aws_sqs_queue.dlq.arn
+  }
+
+  tracing_config {
+    mode = "Active"
   }
 
   depends_on = [
