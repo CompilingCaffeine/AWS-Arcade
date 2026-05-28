@@ -1,0 +1,11 @@
+{
+  "id": "cosmic-clicker",
+  "title": "Cosmic Clicker",
+  "description": "A tiny static HTML5 game used to test the publishing pipeline.",
+  "version": "1.0.0",
+  "entrypoint": "index.html",
+  "author": "Herzi AI",
+  "tags": ["arcade", "clicker", "demo"],
+  "controls": ["Mouse or touch"]
+}
+

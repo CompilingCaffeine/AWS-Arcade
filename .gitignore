@@ -1,0 +1,29 @@
+.DS_Store
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+terraform/envs/*/backend.hcl
+terraform/envs/*/terraform.tfvars
+
+# Lambda/package artifacts
+*.zip
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Local tooling
+.env
+.env.*
+node_modules/
+dist/
+build/
+

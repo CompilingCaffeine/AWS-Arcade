@@ -1,0 +1,16 @@
+project_name = "game-publishing-platform"
+environment  = "prod"
+aws_region   = "us-west-2"
+
+# Start with false for a fast CloudFront-only MVP. Set true after Route53 is ready.
+enable_custom_domain = false
+hosted_zone_name     = "herzi.ai"
+domain_names         = ["play.herzi.ai", "games.herzi.ai"]
+
+cloudfront_price_class = "PriceClass_100"
+force_destroy_buckets  = false
+lambda_memory_size     = 512
+lambda_timeout_seconds = 120
+upload_retention_days  = 30
+enable_catalog_pitr    = false
+

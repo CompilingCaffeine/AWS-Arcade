@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Herzi Arcade</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Herzi Arcade</p>
+        <h1>AI-generated games, ready to play.</h1>
+      </div>
+    </header>
+
+    <main>
+      <section class="toolbar" aria-label="Game filters">
+        <input id="search" type="search" placeholder="Search games" autocomplete="off" />
+        <span id="count">Loading...</span>
+      </section>
+
+      <section id="games" class="game-grid" aria-live="polite"></section>
+      <p id="empty" class="empty" hidden>No games published yet.</p>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
+

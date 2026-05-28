@@ -1,0 +1,7 @@
+bucket         = "replace-with-bootstrap-state-bucket"
+key            = "prod/terraform.tfstate"
+region         = "us-west-2"
+dynamodb_table = "replace-with-bootstrap-lock-table"
+use_lockfile   = true
+encrypt        = true
+
