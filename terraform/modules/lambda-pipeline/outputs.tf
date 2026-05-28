@@ -13,3 +13,13 @@ output "role_arn" {
   value       = aws_iam_role.package_processor.arn
 }
 
+output "dlq_url" {
+  description = "Package processor dead-letter queue URL."
+  value       = aws_sqs_queue.dlq.url
+}
+
+output "dlq_arn" {
+  description = "Package processor dead-letter queue ARN."
+  value       = aws_sqs_queue.dlq.arn
+}
+

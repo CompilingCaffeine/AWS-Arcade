@@ -33,3 +33,18 @@ output "upload_command_example" {
   value       = "aws s3 cp /tmp/sample-game.zip s3://${module.storage.upload_bucket_id}/incoming/sample-game.zip"
 }
 
+output "audit_bucket_name" {
+  description = "Shared audit logs bucket name."
+  value       = module.observability.audit_bucket_id
+}
+
+output "alarm_topic_arn" {
+  description = "SNS topic for CloudWatch alarm notifications."
+  value       = module.observability.alarm_topic_arn
+}
+
+output "lambda_dlq_url" {
+  description = "Dead-letter queue URL for failed package processor invocations."
+  value       = module.lambda_pipeline.dlq_url
+}
+

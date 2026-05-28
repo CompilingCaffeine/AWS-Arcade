@@ -14,3 +14,7 @@ lambda_timeout_seconds = 120
 upload_retention_days  = 30
 enable_catalog_pitr    = false
 
+audit_log_retention_days = 90
+# Confirm the SNS subscription email from your inbox after first apply.
+alarm_email = ""
+

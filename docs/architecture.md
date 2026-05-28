@@ -49,6 +49,18 @@ CloudFront requires ACM certificates in `us-east-1`. The Terraform root uses a p
 
 The `bootstrap` environment creates the S3 state bucket and DynamoDB lock table. The `prod` environment uses that backend. Terraform's S3 backend now supports native lockfiles; this repo enables that and also includes a DynamoDB lock table for teams that require S3 + DynamoDB state locking.
 
+**Observability and audit**
+
+A shared `observability` module provisions an encrypted, versioned audit bucket that receives both CloudTrail logs (under `cloudtrail/`) and S3 server access logs (under `s3-access/`). Lifecycle rules expire old log objects. The same module creates an SNS topic that CloudWatch alarms publish to; alarms on Lambda `Errors > 0` and DLQ depth > 0 fire there. Setting `alarm_email` in `terraform.tfvars` subscribes a confirmation email.
+
+**Security headers via CloudFront response-headers policies**
+
+Two response-headers policies are attached at the distribution. The strict portfolio policy (default and `/catalog/*` behaviors) sets CSP `default-src 'self'`, HSTS with subdomains and preload, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and a `Permissions-Policy` that disables camera, microphone, geolocation, and payment. The games policy (`/games/*` behavior) keeps the same hardening but loosens the CSP to `'unsafe-inline' 'unsafe-eval'` for scripts and styles so arbitrary self-contained HTML5 games can run.
+
+**Failure handling**
+
+The package processor Lambda is wired to an SQS dead-letter queue via `dead_letter_config`. After Lambda's async retries exhaust, the original event payload lands in the DLQ for replay or investigation. The DLQ depth alarm catches this before it ages out.
+
 ## MVP Runtime Flow
 
 1. A ZIP is uploaded to `s3://<upload-bucket>/incoming/<game>.zip`.

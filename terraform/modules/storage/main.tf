@@ -132,3 +132,19 @@ resource "aws_s3_bucket_policy" "uploads" {
   policy = data.aws_iam_policy_document.uploads.json
 }
 
+resource "aws_s3_bucket_logging" "uploads" {
+  count = var.access_logs_bucket == "" ? 0 : 1
+
+  bucket        = aws_s3_bucket.uploads.id
+  target_bucket = var.access_logs_bucket
+  target_prefix = "s3-access/${aws_s3_bucket.uploads.id}/"
+}
+
+resource "aws_s3_bucket_logging" "site" {
+  count = var.access_logs_bucket == "" ? 0 : 1
+
+  bucket        = aws_s3_bucket.site.id
+  target_bucket = var.access_logs_bucket
+  target_prefix = "s3-access/${aws_s3_bucket.site.id}/"
+}
+

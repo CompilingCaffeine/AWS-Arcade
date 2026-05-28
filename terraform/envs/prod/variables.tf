@@ -70,3 +70,15 @@ variable "enable_catalog_pitr" {
   default     = false
 }
 
+variable "audit_log_retention_days" {
+  description = "Lifecycle retention for the audit logs bucket (CloudTrail + S3 access)."
+  type        = number
+  default     = 90
+}
+
+variable "alarm_email" {
+  description = "Email address subscribed to the SNS alarm topic. Empty disables subscription."
+  type        = string
+  default     = ""
+}
+

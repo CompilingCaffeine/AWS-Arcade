@@ -10,12 +10,25 @@ locals {
   }
 }
 
+module "observability" {
+  source = "../../modules/observability"
+
+  name_prefix        = local.name_prefix
+  account_id         = data.aws_caller_identity.current.account_id
+  aws_region         = var.aws_region
+  log_retention_days = var.audit_log_retention_days
+  alarm_email        = var.alarm_email
+  force_destroy      = var.force_destroy_buckets
+  tags               = local.common_tags
+}
+
 module "storage" {
   source = "../../modules/storage"
 
   name_prefix           = local.name_prefix
   force_destroy         = var.force_destroy_buckets
   upload_retention_days = var.upload_retention_days
+  access_logs_bucket    = module.observability.audit_bucket_id
   tags                  = local.common_tags
 }
 
@@ -116,6 +129,7 @@ module "lambda_pipeline" {
   cloudfront_distribution_id     = module.cdn.distribution_id
   lambda_memory_size             = var.lambda_memory_size
   lambda_timeout_seconds         = var.lambda_timeout_seconds
+  alarm_topic_arn                = module.observability.alarm_topic_arn
   frontend_source_dir            = "${path.root}/../../../frontend/public"
   frontend_destination_bucket_id = module.storage.site_bucket_id
   tags                           = local.common_tags

@@ -143,6 +143,19 @@ data "aws_iam_policy_document" "package_processor" {
     actions   = ["cloudfront:CreateInvalidation"]
     resources = [var.cloudfront_distribution_arn]
   }
+
+  statement {
+    sid       = "SendDeadLetterMessages"
+    actions   = ["sqs:SendMessage"]
+    resources = [aws_sqs_queue.dlq.arn]
+  }
+}
+
+resource "aws_sqs_queue" "dlq" {
+  name                      = "${local.function_name}-dlq"
+  message_retention_seconds = var.dlq_message_retention_seconds
+  sqs_managed_sse_enabled   = true
+  tags                      = var.tags
 }
 
 resource "aws_iam_role_policy" "package_processor" {
@@ -170,10 +183,56 @@ resource "aws_lambda_function" "package_processor" {
     }
   }
 
+  dead_letter_config {
+    target_arn = aws_sqs_queue.dlq.arn
+  }
+
   depends_on = [
     aws_cloudwatch_log_group.package_processor,
     aws_iam_role_policy.package_processor,
   ]
+}
+
+resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
+  alarm_name          = "${local.function_name}-errors"
+  alarm_description   = "Package processor Lambda raised one or more errors."
+  namespace           = "AWS/Lambda"
+  metric_name         = "Errors"
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alarm_topic_arn]
+  ok_actions          = [var.alarm_topic_arn]
+
+  dimensions = {
+    FunctionName = aws_lambda_function.package_processor.function_name
+  }
+
+  tags = var.tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
+  alarm_name          = "${local.function_name}-dlq-not-empty"
+  alarm_description   = "Package processor DLQ has messages awaiting investigation."
+  namespace           = "AWS/SQS"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  statistic           = "Maximum"
+  period              = 300
+  evaluation_periods  = 1
+  threshold           = 0
+  comparison_operator = "GreaterThanThreshold"
+  treat_missing_data  = "notBreaching"
+  alarm_actions       = [var.alarm_topic_arn]
+  ok_actions          = [var.alarm_topic_arn]
+
+  dimensions = {
+    QueueName = aws_sqs_queue.dlq.name
+  }
+
+  tags = var.tags
 }
 
 resource "aws_s3_object" "frontend" {

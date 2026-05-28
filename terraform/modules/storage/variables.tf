@@ -15,6 +15,12 @@ variable "upload_retention_days" {
   default     = 30
 }
 
+variable "access_logs_bucket" {
+  description = "Bucket receiving S3 server access logs. Empty disables access logging."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

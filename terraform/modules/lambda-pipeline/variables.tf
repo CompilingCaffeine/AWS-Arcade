@@ -70,6 +70,17 @@ variable "lambda_timeout_seconds" {
   default     = 120
 }
 
+variable "alarm_topic_arn" {
+  description = "SNS topic ARN for CloudWatch alarm notifications."
+  type        = string
+}
+
+variable "dlq_message_retention_seconds" {
+  description = "Retention for DLQ messages."
+  type        = number
+  default     = 1209600
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)
