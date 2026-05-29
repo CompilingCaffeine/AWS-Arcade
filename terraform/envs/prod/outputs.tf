@@ -73,3 +73,23 @@ output "api_endpoint" {
   value       = module.api.api_endpoint
 }
 
+output "upload_page_url" {
+  description = "Uploader-facing page (file picker + Cognito login)."
+  value       = "${local.portfolio_origin}/upload/"
+}
+
+output "my_uploads_page_url" {
+  description = "Per-user submission status page."
+  value       = "${local.portfolio_origin}/my-uploads/"
+}
+
+output "admin_page_url" {
+  description = "Admin review queue (requires membership in the admins Cognito group)."
+  value       = "${local.portfolio_origin}/admin/"
+}
+
+output "ses_sender_email" {
+  description = "SES verified sender; user must confirm the verification email."
+  value       = module.email.sender_email
+}
+

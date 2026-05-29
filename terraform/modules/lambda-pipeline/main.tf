@@ -105,41 +105,40 @@ data "aws_iam_policy_document" "package_processor" {
   }
 
   statement {
-    sid = "WriteGameSiteObjects"
+    sid = "WriteStagingObjects"
     actions = [
       "s3:DeleteObject",
       "s3:GetObject",
       "s3:PutObject",
     ]
-    resources = [
-      "${var.site_bucket_arn}/games/*",
-      "${var.site_bucket_arn}/catalog/*",
-    ]
+    resources = ["${var.site_bucket_arn}/staging/*"]
   }
 
   statement {
-    sid       = "ListGameSiteObjects"
+    sid       = "ListStagingObjects"
     actions   = ["s3:ListBucket"]
     resources = [var.site_bucket_arn]
 
     condition {
       test     = "StringLike"
       variable = "s3:prefix"
-      values = [
-        "games/*",
-        "catalog/*",
-      ]
+      values   = ["staging/*"]
     }
   }
 
   statement {
-    sid = "UpdateCatalog"
+    sid = "UpsertCatalog"
     actions = [
       "dynamodb:GetItem",
       "dynamodb:PutItem",
-      "dynamodb:Scan",
     ]
     resources = [var.catalog_table_arn]
+  }
+
+  statement {
+    sid       = "SendAdminNotification"
+    actions   = ["ses:SendEmail"]
+    resources = [var.sender_identity_arn]
   }
 
   statement {
@@ -190,6 +189,9 @@ resource "aws_lambda_function" "package_processor" {
       CATALOG_TABLE              = var.catalog_table_name
       CLOUDFRONT_DISTRIBUTION_ID = var.cloudfront_distribution_id
       SITE_BUCKET                = var.site_bucket_name
+      SENDER_EMAIL               = var.sender_email
+      ADMIN_EMAIL                = var.admin_email
+      PORTFOLIO_HOSTNAME         = var.portfolio_hostname
     }
   }
 

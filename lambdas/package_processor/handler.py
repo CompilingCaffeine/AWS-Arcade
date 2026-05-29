@@ -21,10 +21,14 @@ LOG.setLevel(os.getenv("LOG_LEVEL", "INFO"))
 s3 = boto3.client("s3")
 dynamodb = boto3.resource("dynamodb")
 cloudfront = boto3.client("cloudfront")
+ses = boto3.client("ses")
 
 SITE_BUCKET = os.environ["SITE_BUCKET"]
 CATALOG_TABLE = os.environ["CATALOG_TABLE"]
 CLOUDFRONT_DISTRIBUTION_ID = os.environ["CLOUDFRONT_DISTRIBUTION_ID"]
+SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
+PORTFOLIO_HOSTNAME = os.getenv("PORTFOLIO_HOSTNAME", "")
 MAX_ZIP_BYTES = int(os.getenv("MAX_ZIP_BYTES", str(50 * 1024 * 1024)))
 MAX_UNCOMPRESSED_BYTES = int(os.getenv("MAX_UNCOMPRESSED_BYTES", str(150 * 1024 * 1024)))
 MAX_FILE_COUNT = int(os.getenv("MAX_FILE_COUNT", "500"))
@@ -62,9 +66,11 @@ ALLOWED_EXTENSIONS = {
 
 
 USER_KEY_RE = re.compile(
-    r"^incoming/(?P<user_sub>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/[a-zA-Z0-9._-]+\.zip$"
+    r"^incoming/"
+    r"(?P<user_sub>[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/"
+    r"(?P<upload_id>[a-zA-Z0-9._-]+)\.zip$"
 )
-LEGACY_KEY_RE = re.compile(r"^incoming/[a-zA-Z0-9._-]+\.zip$")
+LEGACY_KEY_RE = re.compile(r"^incoming/(?P<upload_id>[a-zA-Z0-9._-]+)\.zip$")
 
 
 class PackageValidationError(Exception):
@@ -72,12 +78,13 @@ class PackageValidationError(Exception):
 
 
 def parse_upload_key(key):
-    """Return the uploading user's Cognito sub for namespaced keys, or None for legacy keys."""
+    """Return (user_sub, upload_id). user_sub is None for legacy ops uploads."""
     match = USER_KEY_RE.match(key)
     if match:
-        return match.group("user_sub")
-    if LEGACY_KEY_RE.match(key):
-        return None
+        return match.group("user_sub"), match.group("upload_id")
+    match = LEGACY_KEY_RE.match(key)
+    if match:
+        return None, match.group("upload_id")
     raise PackageValidationError(f"Unexpected upload key shape: {key}")
 
 
@@ -98,7 +105,7 @@ def process_upload(bucket, key):
         LOG.info("Skipping non-zip object s3://%s/%s", bucket, key)
         return {"bucket": bucket, "key": key, "status": "skipped"}
 
-    user_sub = parse_upload_key(key)
+    user_sub, upload_id = parse_upload_key(key)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         zip_path = os.path.join(tmpdir, "game.zip")
@@ -106,16 +113,24 @@ def process_upload(bucket, key):
         package = inspect_package(zip_path)
         manifest = package["manifest"]
         game_id = manifest["id"]
-        deploy_prefix = f"games/{game_id}/"
+        staging_prefix = f"staging/{upload_id}/"
 
-        delete_prefix(SITE_BUCKET, deploy_prefix)
-        upload_package_files(zip_path, package["files"], deploy_prefix)
-        item = upsert_catalog_item(manifest, bucket, key, deploy_prefix, user_sub)
-        write_catalog_json()
-        create_invalidation(game_id)
+        delete_prefix(SITE_BUCKET, staging_prefix)
+        upload_package_files(zip_path, package["files"], staging_prefix)
+        item = upsert_catalog_item(manifest, bucket, key, staging_prefix, user_sub, upload_id)
+        create_staging_invalidation(upload_id)
+        notify_admin_new_submission(item)
 
-    LOG.info("Published game %s from s3://%s/%s", game_id, bucket, key)
-    return {"bucket": bucket, "key": key, "status": "published", "game_id": game_id}
+    LOG.info(
+        "Staged game %s (upload_id=%s) from s3://%s/%s for review", game_id, upload_id, bucket, key
+    )
+    return {
+        "bucket": bucket,
+        "key": key,
+        "status": "pending_review",
+        "game_id": game_id,
+        "upload_id": upload_id,
+    }
 
 
 def download_zip(bucket, key, zip_path):
@@ -227,13 +242,15 @@ def cache_control_for(filename):
     return "public,max-age=3600"
 
 
-def upsert_catalog_item(manifest, source_bucket, source_key, deploy_prefix, user_sub=None):
+def upsert_catalog_item(manifest, source_bucket, source_key, staging_prefix, user_sub, upload_id):
     now = int(time.time())
     game_id = manifest["id"]
-    url_path = f"/{deploy_prefix}"
+    url_path = f"/games/{game_id}/"
+    staging_url_path = f"/{staging_prefix}"
     thumbnail = manifest.get("thumbnail")
     item = {
         "game_id": game_id,
+        "upload_id": upload_id,
         "title": manifest["title"],
         "description": manifest.get("description", ""),
         "version": manifest["version"],
@@ -242,11 +259,13 @@ def upsert_catalog_item(manifest, source_bucket, source_key, deploy_prefix, user
         "tags": manifest.get("tags", []),
         "controls": manifest.get("controls", []),
         "url_path": url_path,
+        "staging_url_path": staging_url_path,
         "thumbnail_url": f"{url_path}{thumbnail}" if thumbnail else "",
+        "staging_thumbnail_url": f"{staging_url_path}{thumbnail}" if thumbnail else "",
         "source_bucket": source_bucket,
         "source_key": source_key,
         "updated_at": now,
-        "status": "published",
+        "status": "pending_review",
     }
     if user_sub:
         item["source_user_sub"] = user_sub
@@ -275,10 +294,6 @@ def to_dynamodb_item(value):
     )
 
 
-def from_dynamodb_item(value):
-    return json.loads(json.dumps(value, default=decimal_default))
-
-
 def decimal_default(value):
     if isinstance(value, Decimal):
         if value % 1 == 0:
@@ -287,56 +302,45 @@ def decimal_default(value):
     raise TypeError
 
 
-def write_catalog_json():
-    table = dynamodb.Table(CATALOG_TABLE)
-    paginator = table.meta.client.get_paginator("scan")
-    games = []
-
-    for page in paginator.paginate(TableName=CATALOG_TABLE):
-        for item in page.get("Items", []):
-            game = from_dynamodb_item(item)
-            if game.get("status") == "published":
-                games.append(public_catalog_record(game))
-
-    games.sort(key=lambda game: game.get("title", "").lower())
-    catalog = {"generated_at": int(time.time()), "games": games}
-    s3.put_object(
-        Bucket=SITE_BUCKET,
-        Key="catalog/catalog.json",
-        Body=json.dumps(catalog, separators=(",", ":"), ensure_ascii=False).encode("utf-8"),
-        ContentType="application/json",
-        CacheControl="public,max-age=30",
-    )
-
-
-def public_catalog_record(game):
-    allowed_keys = [
-        "game_id",
-        "title",
-        "description",
-        "version",
-        "author",
-        "tags",
-        "controls",
-        "url_path",
-        "thumbnail_url",
-        "updated_at",
-        "created_at",
-    ]
-    return {key: game[key] for key in allowed_keys if game.get(key) not in (None, "")}
-
-
-def create_invalidation(game_id):
+def create_staging_invalidation(upload_id):
     paths = [
-        f"/games/{game_id}/*",
-        f"/games/{game_id}/",
-        "/catalog/catalog.json",
-        "/index.html",
+        f"/staging/{upload_id}/*",
+        f"/staging/{upload_id}/",
     ]
     cloudfront.create_invalidation(
         DistributionId=CLOUDFRONT_DISTRIBUTION_ID,
         InvalidationBatch={
-            "CallerReference": f"{game_id}-{int(time.time())}",
+            "CallerReference": f"stage-{upload_id}-{int(time.time())}",
             "Paths": {"Quantity": len(paths), "Items": paths},
         },
     )
+
+
+def notify_admin_new_submission(item):
+    if not (SENDER_EMAIL and ADMIN_EMAIL and PORTFOLIO_HOSTNAME):
+        LOG.info("Skipping admin notification: sender/admin/portfolio not configured")
+        return
+
+    preview = f"https://{PORTFOLIO_HOSTNAME}{item['staging_url_path']}"
+    review_url = f"https://{PORTFOLIO_HOSTNAME}/admin/"
+    body = (
+        f"A new game has been submitted for review.\n\n"
+        f"Title: {item['title']}\n"
+        f"Game ID: {item['game_id']}\n"
+        f"Author: {item.get('author') or '(none)'}\n"
+        f"Uploader: {item.get('source_user_sub') or '(legacy)'}\n\n"
+        f"Preview: {preview}\n"
+        f"Review:  {review_url}\n"
+    )
+
+    try:
+        ses.send_email(
+            Source=SENDER_EMAIL,
+            Destination={"ToAddresses": [ADMIN_EMAIL]},
+            Message={
+                "Subject": {"Data": f"[Herzi Arcade] New submission: {item['title']}"},
+                "Body": {"Text": {"Data": body}},
+            },
+        )
+    except ClientError:
+        LOG.exception("Failed to send admin notification for %s", item["game_id"])

@@ -87,6 +87,26 @@ variable "log_retention_days" {
   default     = 365
 }
 
+variable "sender_email" {
+  description = "SES verified sender for admin notification emails."
+  type        = string
+}
+
+variable "sender_identity_arn" {
+  description = "SES sender identity ARN for IAM ses:SendEmail scoping."
+  type        = string
+}
+
+variable "admin_email" {
+  description = "Email recipient for new-submission notifications."
+  type        = string
+}
+
+variable "portfolio_hostname" {
+  description = "Public hostname used in email body URLs."
+  type        = string
+}
+
 variable "tags" {
   description = "Common tags."
   type        = map(string)

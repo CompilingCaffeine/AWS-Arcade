@@ -129,6 +129,10 @@ module "lambda_pipeline" {
   lambda_memory_size             = var.lambda_memory_size
   lambda_timeout_seconds         = var.lambda_timeout_seconds
   alarm_topic_arn                = module.observability.alarm_topic_arn
+  sender_email                   = module.email.sender_email
+  sender_identity_arn            = module.email.sender_identity_arn
+  admin_email                    = var.alarm_email
+  portfolio_hostname             = local.portfolio_hostname
   frontend_source_dir            = "${path.root}/../../../frontend/public"
   frontend_destination_bucket_id = module.storage.site_bucket_id
   tags                           = local.common_tags
@@ -167,8 +171,30 @@ module "dns_records" {
   distribution_hosted_zone_id = module.cdn.distribution_hosted_zone_id
 }
 
+resource "aws_s3_object" "frontend_config" {
+  bucket        = module.storage.site_bucket_id
+  key           = "config.js"
+  content_type  = "application/javascript"
+  content       = <<-EOT
+    window.AppConfig = {
+      apiEndpoint: "${module.api.api_endpoint}",
+      cognitoDomain: "${module.auth.hosted_ui_domain}",
+      cognitoClientId: "${module.auth.web_client_id}",
+      portfolioOrigin: "${local.portfolio_origin}",
+    };
+  EOT
+  cache_control = "public,max-age=60"
+}
+
 locals {
-  portfolio_origin = var.enable_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : "https://${module.cdn.distribution_domain_name}"
+  portfolio_origin   = var.enable_custom_domain && length(var.domain_names) > 0 ? "https://${var.domain_names[0]}" : "https://${module.cdn.distribution_domain_name}"
+  portfolio_hostname = var.enable_custom_domain && length(var.domain_names) > 0 ? var.domain_names[0] : module.cdn.distribution_domain_name
+}
+
+module "email" {
+  source = "../../modules/email"
+
+  sender_email = var.alarm_email
 }
 
 module "auth" {
@@ -177,20 +203,37 @@ module "auth" {
   name_prefix           = local.name_prefix
   project_display_name  = var.project_display_name
   cognito_domain_prefix = var.cognito_domain_prefix
-  callback_urls         = ["${local.portfolio_origin}/"]
-  logout_urls           = ["${local.portfolio_origin}/"]
-  tags                  = local.common_tags
+  callback_urls = [
+    "${local.portfolio_origin}/",
+    "${local.portfolio_origin}/upload/",
+    "${local.portfolio_origin}/my-uploads/",
+    "${local.portfolio_origin}/admin/",
+  ]
+  logout_urls = ["${local.portfolio_origin}/"]
+  tags        = local.common_tags
 }
 
 module "api" {
   source = "../../modules/api"
 
-  name_prefix        = local.name_prefix
-  source_dir         = "${path.root}/../../../lambdas/request_upload_url"
-  upload_bucket_name = module.storage.upload_bucket_id
-  upload_bucket_arn  = module.storage.upload_bucket_arn
-  cognito_client_id  = module.auth.web_client_id
-  cognito_issuer     = module.auth.user_pool_issuer
-  allowed_origins    = [local.portfolio_origin]
-  tags               = local.common_tags
+  name_prefix                 = local.name_prefix
+  source_dir                  = "${path.root}/../../../lambdas/request_upload_url"
+  my_uploads_source_dir       = "${path.root}/../../../lambdas/my_uploads"
+  admin_handler_source_dir    = "${path.root}/../../../lambdas/admin_handler"
+  upload_bucket_name          = module.storage.upload_bucket_id
+  upload_bucket_arn           = module.storage.upload_bucket_arn
+  site_bucket_name            = module.storage.site_bucket_id
+  site_bucket_arn             = module.storage.site_bucket_arn
+  catalog_table_name          = module.catalog.table_name
+  catalog_table_arn           = module.catalog.table_arn
+  cloudfront_distribution_id  = module.cdn.distribution_id
+  cloudfront_distribution_arn = module.cdn.distribution_arn
+  sender_email                = module.email.sender_email
+  sender_identity_arn         = module.email.sender_identity_arn
+  admin_email                 = var.alarm_email
+  portfolio_hostname          = local.portfolio_hostname
+  cognito_client_id           = module.auth.web_client_id
+  cognito_issuer              = module.auth.user_pool_issuer
+  allowed_origins             = [local.portfolio_origin]
+  tags                        = local.common_tags
 }

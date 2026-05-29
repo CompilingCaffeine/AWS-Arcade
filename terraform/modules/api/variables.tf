@@ -4,7 +4,17 @@ variable "name_prefix" {
 }
 
 variable "source_dir" {
-  description = "Source directory for the request-upload-url Lambda."
+  description = "Source directory for the request-upload-url (presign) Lambda."
+  type        = string
+}
+
+variable "my_uploads_source_dir" {
+  description = "Source directory for the my_uploads Lambda."
+  type        = string
+}
+
+variable "admin_handler_source_dir" {
+  description = "Source directory for the admin_handler Lambda."
   type        = string
 }
 
@@ -15,6 +25,56 @@ variable "upload_bucket_name" {
 
 variable "upload_bucket_arn" {
   description = "Upload bucket ARN. Used for Lambda IAM s3:PutObject scope."
+  type        = string
+}
+
+variable "site_bucket_name" {
+  description = "Site bucket name. Used by admin_handler for staging-to-published copies and catalog writes."
+  type        = string
+}
+
+variable "site_bucket_arn" {
+  description = "Site bucket ARN."
+  type        = string
+}
+
+variable "catalog_table_name" {
+  description = "DynamoDB catalog table name."
+  type        = string
+}
+
+variable "catalog_table_arn" {
+  description = "DynamoDB catalog table ARN."
+  type        = string
+}
+
+variable "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID."
+  type        = string
+}
+
+variable "cloudfront_distribution_arn" {
+  description = "CloudFront distribution ARN."
+  type        = string
+}
+
+variable "sender_email" {
+  description = "SES verified sender used for admin/uploader notifications."
+  type        = string
+}
+
+variable "sender_identity_arn" {
+  description = "ARN of the SES sender identity (for IAM ses:SendEmail scoping)."
+  type        = string
+}
+
+variable "admin_email" {
+  description = "Email address that receives admin notifications and uploader-flow emails (sandbox: same as sender)."
+  type        = string
+}
+
+variable "portfolio_hostname" {
+  description = "Public hostname of the portfolio (e.g., d24v....cloudfront.net). Used in email body URLs."
   type        = string
 }
 

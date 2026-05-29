@@ -18,8 +18,11 @@ $(VENV)/bin/pytest:
 	$(VENV)/bin/pip install --quiet -r $(LAMBDA_DIR)/requirements-dev.txt
 
 .PHONY: test
-test: $(VENV)/bin/pytest  ## Run Lambda unit tests
-	$(VENV)/bin/pytest $(LAMBDA_DIR)/tests/
+test: $(VENV)/bin/pytest  ## Run Lambda unit tests (each suite runs in its own pytest session)
+	@for d in lambdas/*/tests; do \
+		echo "==> $$d"; \
+		$(VENV)/bin/pytest "$$d" -q || exit 1; \
+	done
 
 .PHONY: lint
 lint: fmt tflint checkov  ## Run terraform fmt, tflint, and checkov

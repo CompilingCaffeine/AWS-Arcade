@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My uploads · Herzi Arcade</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div>
+        <p class="eyebrow">Herzi Arcade · My uploads</p>
+        <h1>Your submissions</h1>
+      </div>
+    </header>
+
+    <main>
+      <section id="logged-out" hidden>
+        <p>Please <a id="login-link" class="play-link">log in</a> to view your submissions.</p>
+      </section>
+
+      <section id="logged-in" hidden>
+        <p>Signed in as <strong id="email"></strong> · <a href="#" id="logout-link">Sign out</a></p>
+        <p><a href="/upload/">Submit a new game</a></p>
+        <div id="items"></div>
+        <p id="status" aria-live="polite"></p>
+      </section>
+    </main>
+
+    <script src="/config.js"></script>
+    <script src="/auth.js"></script>
+    <script src="/my-uploads/my-uploads.js"></script>
+  </body>
+</html>

@@ -218,11 +218,15 @@ def test_inspect_package_rejects_oversized_uncompressed(tmp_path, monkeypatch):
 
 def test_parse_upload_key_user_namespaced():
     sub = "12345678-1234-1234-1234-123456789abc"
-    assert handler.parse_upload_key(f"incoming/{sub}/abc123.zip") == sub
+    user_sub, upload_id = handler.parse_upload_key(f"incoming/{sub}/abc123.zip")
+    assert user_sub == sub
+    assert upload_id == "abc123"
 
 
 def test_parse_upload_key_legacy():
-    assert handler.parse_upload_key("incoming/sample-game.zip") is None
+    user_sub, upload_id = handler.parse_upload_key("incoming/sample-game.zip")
+    assert user_sub is None
+    assert upload_id == "sample-game"
 
 
 @pytest.mark.parametrize(
@@ -239,7 +243,7 @@ def test_parse_upload_key_rejects_unexpected(bad_key):
         handler.parse_upload_key(bad_key)
 
 
-# to_dynamodb_item / public_catalog_record — regression tests
+# to_dynamodb_item — regression tests
 
 
 def test_to_dynamodb_item_round_trips_decimal_from_existing_record():
@@ -249,17 +253,3 @@ def test_to_dynamodb_item_round_trips_decimal_from_existing_record():
     assert result["created_at"] == Decimal("1779944223")
 
 
-def test_public_catalog_record_handles_list_fields():
-    game = {
-        "game_id": "x",
-        "title": "Test",
-        "tags": ["arcade", "demo"],
-        "controls": ["mouse"],
-        "description": "",
-        "thumbnail_url": "",
-    }
-    record = handler.public_catalog_record(game)
-    assert record["tags"] == ["arcade", "demo"]
-    assert record["controls"] == ["mouse"]
-    assert "description" not in record
-    assert "thumbnail_url" not in record

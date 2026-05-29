@@ -17,3 +17,13 @@ output "function_arn" {
   description = "request-upload-url Lambda function ARN."
   value       = aws_lambda_function.request_upload_url.arn
 }
+
+output "my_uploads_function_name" {
+  description = "my_uploads Lambda function name."
+  value       = aws_lambda_function.my_uploads.function_name
+}
+
+output "admin_handler_function_name" {
+  description = "admin_handler Lambda function name."
+  value       = aws_lambda_function.admin_handler.function_name
+}

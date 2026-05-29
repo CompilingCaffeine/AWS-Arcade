@@ -70,7 +70,7 @@ resource "aws_cloudfront_response_headers_policy" "portfolio" {
 
   security_headers_config {
     content_security_policy {
-      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
+      content_security_policy = "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.amazoncognito.com https://*.execute-api.us-east-1.amazonaws.com; form-action 'self' https://*.amazoncognito.com; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
       override                = true
     }
 
@@ -180,6 +180,22 @@ resource "aws_cloudfront_distribution" "this" {
 
   ordered_cache_behavior {
     path_pattern               = "/games/*"
+    target_origin_id           = "site-s3-origin"
+    viewer_protocol_policy     = "redirect-to-https"
+    allowed_methods            = ["GET", "HEAD", "OPTIONS"]
+    cached_methods             = ["GET", "HEAD"]
+    compress                   = true
+    cache_policy_id            = aws_cloudfront_cache_policy.default.id
+    response_headers_policy_id = aws_cloudfront_response_headers_policy.games.id
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.uri_rewrite.arn
+    }
+  }
+
+  ordered_cache_behavior {
+    path_pattern               = "/staging/*"
     target_origin_id           = "site-s3-origin"
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD", "OPTIONS"]
