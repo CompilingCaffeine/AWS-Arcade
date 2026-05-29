@@ -25,6 +25,10 @@ env:
   TF_IN_AUTOMATION: "true"
   AWS_REGION: ${{ vars.AWS_REGION }}
   TF_WORKING_DIR: terraform/envs/prod
+  # Inject non-default prod values. Keep in sync with terraform/envs/prod/terraform.tfvars
+  # (gitignored). Add more TF_VAR_* entries here if you set new non-default values locally.
+  TF_VAR_aws_region: ${{ vars.AWS_REGION }}
+  TF_VAR_alarm_email: ${{ secrets.ALARM_EMAIL }}
 
 jobs:
   terraform:
