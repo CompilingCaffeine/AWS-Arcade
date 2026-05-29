@@ -12,7 +12,7 @@ LOG.setLevel(os.getenv("LOG_LEVEL", "INFO"))
 
 dynamodb = boto3.resource("dynamodb")
 
-CATALOG_TABLE = os.environ["CATALOG_TABLE"]
+SUBMISSIONS_TABLE = os.environ["SUBMISSIONS_TABLE"]
 
 SUB_RE = re.compile(r"^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$")
 
@@ -48,13 +48,13 @@ def handler(event, _context):
     if not SUB_RE.match(user_sub):
         return _response(401, {"error": "invalid_sub"})
 
-    table = dynamodb.Table(CATALOG_TABLE)
+    table = dynamodb.Table(SUBMISSIONS_TABLE)
     paginator = table.meta.client.get_paginator("scan")
     items = []
 
     try:
         for page in paginator.paginate(
-            TableName=CATALOG_TABLE,
+            TableName=SUBMISSIONS_TABLE,
             FilterExpression=Attr("source_user_sub").eq(user_sub),
         ):
             for raw in page.get("Items", []):

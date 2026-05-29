@@ -39,12 +39,22 @@ variable "site_bucket_arn" {
 }
 
 variable "catalog_table_name" {
-  description = "DynamoDB catalog table name."
+  description = "DynamoDB games table name (published catalog). Read by admin_handler when rebuilding catalog.json and during ownership checks; written when promoting a submission."
   type        = string
 }
 
 variable "catalog_table_arn" {
-  description = "DynamoDB catalog table ARN."
+  description = "DynamoDB games table ARN."
+  type        = string
+}
+
+variable "submissions_table_name" {
+  description = "DynamoDB submissions table name. Scanned by admin_handler for the pending queue and by my_uploads for per-user history; written when promoting/rejecting."
+  type        = string
+}
+
+variable "submissions_table_arn" {
+  description = "DynamoDB submissions table ARN."
   type        = string
 }
 

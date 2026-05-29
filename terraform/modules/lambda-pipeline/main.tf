@@ -127,12 +127,9 @@ data "aws_iam_policy_document" "package_processor" {
   }
 
   statement {
-    sid = "UpsertCatalog"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-    ]
-    resources = [var.catalog_table_arn]
+    sid       = "WriteSubmissions"
+    actions   = ["dynamodb:PutItem"]
+    resources = [var.submissions_table_arn]
   }
 
   statement {
@@ -186,7 +183,7 @@ resource "aws_lambda_function" "package_processor" {
 
   environment {
     variables = {
-      CATALOG_TABLE              = var.catalog_table_name
+      SUBMISSIONS_TABLE          = var.submissions_table_name
       CLOUDFRONT_DISTRIBUTION_ID = var.cloudfront_distribution_id
       SITE_BUCKET                = var.site_bucket_name
       SENDER_EMAIL               = var.sender_email

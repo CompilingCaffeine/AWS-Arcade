@@ -7,7 +7,7 @@ REPO_ROOT = PKG_DIR.parents[1]
 
 os.environ.setdefault("AWS_DEFAULT_REGION", "us-west-2")
 os.environ.setdefault("SITE_BUCKET", "test-site-bucket")
-os.environ.setdefault("CATALOG_TABLE", "test-catalog-table")
+os.environ.setdefault("SUBMISSIONS_TABLE", "test-submissions-table")
 os.environ.setdefault("CLOUDFRONT_DISTRIBUTION_ID", "EXAMPLEDIST")
 os.environ.setdefault(
     "MANIFEST_SCHEMA_PATH",

@@ -6,10 +6,11 @@
 
   function renderItem(item) {
     return `
-      <article class="game-card" data-game-id="${escapeHtml(item.game_id)}">
+      <article class="game-card" data-upload-id="${escapeHtml(item.upload_id)}" data-game-id="${escapeHtml(item.game_id)}">
         <div class="game-card-body">
           <h2>${escapeHtml(item.title || item.game_id)}</h2>
           <p>${escapeHtml(item.description || "")}</p>
+          <p>Game ID: <code>${escapeHtml(item.game_id)}</code></p>
           <p>Uploader: <code>${escapeHtml(item.source_user_sub || "(legacy)")}</code></p>
           ${item.staging_url_path ? `<p><a class="play-link" href="${escapeHtml(item.staging_url_path)}" target="_blank" rel="noopener">Preview</a></p>` : ""}
           <p>
@@ -42,7 +43,8 @@
   document.getElementById("items").addEventListener("click", async (event) => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
-    const card = button.closest("[data-game-id]");
+    const card = button.closest("[data-upload-id]");
+    const uploadId = card.getAttribute("data-upload-id");
     const gameId = card.getAttribute("data-game-id");
     const action = button.getAttribute("data-action");
     const status = document.getElementById("status");
@@ -54,13 +56,14 @@
     }
 
     status.textContent = `${action}ing ${gameId}…`;
-    const response = await apiCall(`/admin/games/${encodeURIComponent(gameId)}/${action}`, {
+    const response = await apiCall(`/admin/submissions/${encodeURIComponent(uploadId)}/${action}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
     });
     if (!response.ok) {
-      status.textContent = `${action} failed (HTTP ${response.status}).`;
+      const detail = await response.json().catch(() => ({}));
+      status.textContent = `${action} failed (HTTP ${response.status}): ${detail.error || ""}`;
       return;
     }
     status.textContent = `${action}d ${gameId}.`;

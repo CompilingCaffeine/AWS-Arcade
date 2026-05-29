@@ -19,6 +19,7 @@ ses = boto3.client("ses")
 
 SITE_BUCKET = os.environ["SITE_BUCKET"]
 CATALOG_TABLE = os.environ["CATALOG_TABLE"]
+SUBMISSIONS_TABLE = os.environ["SUBMISSIONS_TABLE"]
 CLOUDFRONT_DISTRIBUTION_ID = os.environ["CLOUDFRONT_DISTRIBUTION_ID"]
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
@@ -40,13 +41,36 @@ PUBLIC_CATALOG_FIELDS = [
     "created_at",
 ]
 
-PUBLIC_REVIEW_FIELDS = PUBLIC_CATALOG_FIELDS + [
+GAME_FIELDS_FROM_SUBMISSION = [
+    "title",
+    "description",
+    "version",
+    "entrypoint",
+    "author",
+    "tags",
+    "controls",
+    "url_path",
+    "thumbnail_url",
+]
+
+PUBLIC_REVIEW_FIELDS = [
+    "upload_id",
+    "game_id",
+    "title",
+    "description",
+    "version",
+    "author",
+    "tags",
+    "controls",
     "status",
+    "url_path",
+    "thumbnail_url",
     "staging_url_path",
     "staging_thumbnail_url",
-    "upload_id",
     "source_user_sub",
     "reject_reason",
+    "created_at",
+    "updated_at",
 ]
 
 
@@ -63,17 +87,17 @@ def handler(event, _context):
 
     route = event.get("routeKey", "")
     path_params = event.get("pathParameters") or {}
-    game_id = path_params.get("game_id")
+    upload_id = path_params.get("upload_id")
 
     try:
         if route == "GET /admin/pending":
             return _list_pending()
-        if route == "POST /admin/games/{game_id}/promote" and game_id:
-            return _promote(game_id)
-        if route == "POST /admin/games/{game_id}/reject" and game_id:
+        if route == "POST /admin/submissions/{upload_id}/promote" and upload_id:
+            return _promote(upload_id)
+        if route == "POST /admin/submissions/{upload_id}/reject" and upload_id:
             body = json.loads(event.get("body") or "{}")
             reason = (body.get("reason") or "").strip()
-            return _reject(game_id, reason)
+            return _reject(upload_id, reason)
     except ClientError:
         LOG.exception("AWS error handling %s", route)
         return _response(500, {"error": "internal"})
@@ -92,11 +116,11 @@ def _is_admin(claims):
 
 
 def _list_pending():
-    table = dynamodb.Table(CATALOG_TABLE)
-    paginator = table.meta.client.get_paginator("scan")
+    submissions = dynamodb.Table(SUBMISSIONS_TABLE)
+    paginator = submissions.meta.client.get_paginator("scan")
     items = []
     for page in paginator.paginate(
-        TableName=CATALOG_TABLE,
+        TableName=SUBMISSIONS_TABLE,
         FilterExpression=Attr("status").eq("pending_review"),
     ):
         for raw in page.get("Items", []):
@@ -105,17 +129,33 @@ def _list_pending():
     return _response(200, {"items": items})
 
 
-def _promote(game_id):
-    table = dynamodb.Table(CATALOG_TABLE)
-    item = table.get_item(Key={"game_id": game_id}).get("Item")
-    if not item:
-        return _response(404, {"error": "not_found"})
+def _promote(upload_id):
+    submissions = dynamodb.Table(SUBMISSIONS_TABLE)
+    games = dynamodb.Table(CATALOG_TABLE)
 
-    item = _from_dynamodb(item)
-    if item.get("status") != "pending_review":
-        return _response(409, {"error": "not_pending", "current_status": item.get("status")})
+    submission = submissions.get_item(Key={"upload_id": upload_id}).get("Item")
+    if not submission:
+        return _response(404, {"error": "submission_not_found"})
 
-    upload_id = item["upload_id"]
+    submission = _from_dynamodb(submission)
+    if submission.get("status") != "pending_review":
+        return _response(409, {"error": "not_pending", "current_status": submission.get("status")})
+
+    game_id = submission["game_id"]
+    existing_game = games.get_item(Key={"game_id": game_id}).get("Item")
+    existing_game = _from_dynamodb(existing_game) if existing_game else None
+
+    if existing_game and existing_game.get("source_user_sub") != submission.get("source_user_sub"):
+        return _response(
+            409,
+            {
+                "error": "ownership_conflict",
+                "game_id": game_id,
+                "owned_by": existing_game.get("source_user_sub"),
+                "submitted_by": submission.get("source_user_sub"),
+            },
+        )
+
     source_prefix = f"staging/{upload_id}/"
     target_prefix = f"games/{game_id}/"
 
@@ -124,10 +164,19 @@ def _promote(game_id):
     _delete_prefix(SITE_BUCKET, source_prefix)
 
     now = int(time.time())
-    item["status"] = "published"
-    item["updated_at"] = now
-    item.pop("reject_reason", None)
-    table.put_item(Item=_to_dynamodb(item))
+    game_item = {key: submission[key] for key in GAME_FIELDS_FROM_SUBMISSION if submission.get(key) not in (None, "")}
+    game_item["game_id"] = game_id
+    game_item["source_user_sub"] = submission.get("source_user_sub", "")
+    game_item["current_upload_id"] = upload_id
+    game_item["created_at"] = existing_game.get("created_at", now) if existing_game else now
+    game_item["updated_at"] = now
+    games.put_item(Item=_to_dynamodb(game_item))
+
+    submission["status"] = "promoted"
+    submission["promoted_at"] = now
+    submission["updated_at"] = now
+    submission.pop("reject_reason", None)
+    submissions.put_item(Item=_to_dynamodb(submission))
 
     _write_catalog_json()
     _invalidate_paths(
@@ -140,55 +189,55 @@ def _promote(game_id):
         ]
     )
     _notify_uploader(
-        subject=f"[Herzi Arcade] Published: {item['title']}",
+        subject=f"[Herzi Arcade] Published: {game_item['title']}",
         body=(
-            f"Your submission '{item['title']}' has been promoted to the live catalog.\n\n"
-            f"Live URL: https://{PORTFOLIO_HOSTNAME}{item['url_path']}\n"
+            f"Your submission '{game_item['title']}' has been promoted to the live catalog.\n\n"
+            f"Live URL: https://{PORTFOLIO_HOSTNAME}{game_item['url_path']}\n"
         ),
     )
 
     return _response(
         200,
         {
+            "upload_id": upload_id,
             "game_id": game_id,
-            "status": "published",
-            "url_path": item["url_path"],
+            "status": "promoted",
+            "url_path": game_item["url_path"],
             "files_copied": keys_copied,
         },
     )
 
 
-def _reject(game_id, reason):
-    table = dynamodb.Table(CATALOG_TABLE)
-    item = table.get_item(Key={"game_id": game_id}).get("Item")
-    if not item:
-        return _response(404, {"error": "not_found"})
+def _reject(upload_id, reason):
+    submissions = dynamodb.Table(SUBMISSIONS_TABLE)
+    submission = submissions.get_item(Key={"upload_id": upload_id}).get("Item")
+    if not submission:
+        return _response(404, {"error": "submission_not_found"})
 
-    item = _from_dynamodb(item)
-    if item.get("status") != "pending_review":
-        return _response(409, {"error": "not_pending", "current_status": item.get("status")})
+    submission = _from_dynamodb(submission)
+    if submission.get("status") != "pending_review":
+        return _response(409, {"error": "not_pending", "current_status": submission.get("status")})
 
-    upload_id = item["upload_id"]
     staging_prefix = f"staging/{upload_id}/"
     _delete_prefix(SITE_BUCKET, staging_prefix)
 
     now = int(time.time())
-    item["status"] = "rejected"
-    item["updated_at"] = now
+    submission["status"] = "rejected"
+    submission["updated_at"] = now
     if reason:
-        item["reject_reason"] = reason
-    table.put_item(Item=_to_dynamodb(item))
+        submission["reject_reason"] = reason
+    submissions.put_item(Item=_to_dynamodb(submission))
 
     _invalidate_paths([f"/staging/{upload_id}/*"])
     _notify_uploader(
-        subject=f"[Herzi Arcade] Submission rejected: {item['title']}",
+        subject=f"[Herzi Arcade] Submission rejected: {submission['title']}",
         body=(
-            f"Your submission '{item['title']}' was not accepted.\n\n"
+            f"Your submission '{submission['title']}' was not accepted.\n\n"
             + (f"Reason: {reason}\n" if reason else "")
         ),
     )
 
-    return _response(200, {"game_id": game_id, "status": "rejected"})
+    return _response(200, {"upload_id": upload_id, "game_id": submission.get("game_id"), "status": "rejected"})
 
 
 def _copy_prefix(source_bucket, source_prefix, target_bucket, target_prefix):
@@ -232,16 +281,14 @@ def _cache_control_for(key):
 
 
 def _write_catalog_json():
-    table = dynamodb.Table(CATALOG_TABLE)
-    paginator = table.meta.client.get_paginator("scan")
-    games = []
+    games = dynamodb.Table(CATALOG_TABLE)
+    paginator = games.meta.client.get_paginator("scan")
+    items = []
     for page in paginator.paginate(TableName=CATALOG_TABLE):
         for raw in page.get("Items", []):
-            game = _from_dynamodb(raw)
-            if game.get("status") == "published":
-                games.append(_filter_fields(game, PUBLIC_CATALOG_FIELDS))
-    games.sort(key=lambda g: g.get("title", "").lower())
-    catalog = {"generated_at": int(time.time()), "games": games}
+            items.append(_filter_fields(_from_dynamodb(raw), PUBLIC_CATALOG_FIELDS))
+    items.sort(key=lambda g: g.get("title", "").lower())
+    catalog = {"generated_at": int(time.time()), "games": items}
     s3.put_object(
         Bucket=SITE_BUCKET,
         Key="catalog/catalog.json",

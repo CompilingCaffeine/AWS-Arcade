@@ -38,13 +38,13 @@ variable "site_bucket_name" {
   type        = string
 }
 
-variable "catalog_table_arn" {
-  description = "Catalog DynamoDB table ARN."
+variable "submissions_table_arn" {
+  description = "Submissions DynamoDB table ARN. The package_processor writes new uploads here keyed by upload_id."
   type        = string
 }
 
-variable "catalog_table_name" {
-  description = "Catalog DynamoDB table name."
+variable "submissions_table_name" {
+  description = "Submissions DynamoDB table name."
   type        = string
 }
 

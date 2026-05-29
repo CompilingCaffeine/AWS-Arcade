@@ -122,8 +122,8 @@ module "lambda_pipeline" {
   upload_bucket_arn              = module.storage.upload_bucket_arn
   site_bucket_arn                = module.storage.site_bucket_arn
   site_bucket_name               = module.storage.site_bucket_id
-  catalog_table_arn              = module.catalog.table_arn
-  catalog_table_name             = module.catalog.table_name
+  submissions_table_arn          = module.catalog.submissions_table_arn
+  submissions_table_name         = module.catalog.submissions_table_name
   cloudfront_distribution_arn    = module.cdn.distribution_arn
   cloudfront_distribution_id     = module.cdn.distribution_id
   lambda_memory_size             = var.lambda_memory_size
@@ -226,6 +226,8 @@ module "api" {
   site_bucket_arn             = module.storage.site_bucket_arn
   catalog_table_name          = module.catalog.table_name
   catalog_table_arn           = module.catalog.table_arn
+  submissions_table_name      = module.catalog.submissions_table_name
+  submissions_table_arn       = module.catalog.submissions_table_arn
   cloudfront_distribution_id  = module.cdn.distribution_id
   cloudfront_distribution_arn = module.cdn.distribution_arn
   sender_email                = module.email.sender_email

@@ -123,20 +123,20 @@ module "my_uploads" {
   routes = ["GET /me/uploads"]
 
   environment_variables = {
-    CATALOG_TABLE = var.catalog_table_name
+    SUBMISSIONS_TABLE = var.submissions_table_name
   }
 
   iam_statements = [
     {
-      sid       = "ScanCatalog"
+      sid       = "ScanSubmissions"
       actions   = ["dynamodb:Scan"]
-      resources = [var.catalog_table_arn]
+      resources = [var.submissions_table_arn]
     },
   ]
 }
 
 # -----------------------------------------------------------------------------
-# admin_handler — GET /admin/pending, POST /admin/games/{id}/promote|reject
+# admin_handler — GET /admin/pending, POST /admin/submissions/{upload_id}/promote|reject
 # -----------------------------------------------------------------------------
 
 module "admin_handler" {
@@ -154,13 +154,14 @@ module "admin_handler" {
 
   routes = [
     "GET /admin/pending",
-    "POST /admin/games/{game_id}/promote",
-    "POST /admin/games/{game_id}/reject",
+    "POST /admin/submissions/{upload_id}/promote",
+    "POST /admin/submissions/{upload_id}/reject",
   ]
 
   environment_variables = {
     SITE_BUCKET                = var.site_bucket_name
     CATALOG_TABLE              = var.catalog_table_name
+    SUBMISSIONS_TABLE          = var.submissions_table_name
     CLOUDFRONT_DISTRIBUTION_ID = var.cloudfront_distribution_id
     SENDER_EMAIL               = var.sender_email
     ADMIN_EMAIL                = var.admin_email
@@ -192,9 +193,14 @@ module "admin_handler" {
       }]
     },
     {
-      sid       = "UpdateCatalog"
+      sid       = "ReadAndWriteGames"
       actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Scan"]
       resources = [var.catalog_table_arn]
+    },
+    {
+      sid       = "ReadAndWriteSubmissions"
+      actions   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Scan"]
+      resources = [var.submissions_table_arn]
     },
     {
       sid       = "CreateCloudFrontInvalidations"

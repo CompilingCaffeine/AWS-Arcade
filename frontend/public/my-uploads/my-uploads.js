@@ -5,7 +5,7 @@
   const { escapeHtml, apiCall } = window.HerziAuth;
 
   function renderItem(item) {
-    const previewHref = item.status === "published" ? item.url_path : item.staging_url_path;
+    const previewHref = item.status === "promoted" ? item.url_path : item.staging_url_path;
     return `
       <article class="game-card">
         <div class="game-card-body">

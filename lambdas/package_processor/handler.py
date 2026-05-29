@@ -24,7 +24,7 @@ cloudfront = boto3.client("cloudfront")
 ses = boto3.client("ses")
 
 SITE_BUCKET = os.environ["SITE_BUCKET"]
-CATALOG_TABLE = os.environ["CATALOG_TABLE"]
+SUBMISSIONS_TABLE = os.environ["SUBMISSIONS_TABLE"]
 CLOUDFRONT_DISTRIBUTION_ID = os.environ["CLOUDFRONT_DISTRIBUTION_ID"]
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "")
 ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
@@ -117,7 +117,7 @@ def process_upload(bucket, key):
 
         delete_prefix(SITE_BUCKET, staging_prefix)
         upload_package_files(zip_path, package["files"], staging_prefix)
-        item = upsert_catalog_item(manifest, bucket, key, staging_prefix, user_sub, upload_id)
+        item = write_submission(manifest, bucket, key, staging_prefix, user_sub, upload_id)
         create_staging_invalidation(upload_id)
         notify_admin_new_submission(item)
 
@@ -242,15 +242,15 @@ def cache_control_for(filename):
     return "public,max-age=3600"
 
 
-def upsert_catalog_item(manifest, source_bucket, source_key, staging_prefix, user_sub, upload_id):
+def write_submission(manifest, source_bucket, source_key, staging_prefix, user_sub, upload_id):
     now = int(time.time())
     game_id = manifest["id"]
     url_path = f"/games/{game_id}/"
     staging_url_path = f"/{staging_prefix}"
     thumbnail = manifest.get("thumbnail")
     item = {
-        "game_id": game_id,
         "upload_id": upload_id,
+        "game_id": game_id,
         "title": manifest["title"],
         "description": manifest.get("description", ""),
         "version": manifest["version"],
@@ -264,27 +264,16 @@ def upsert_catalog_item(manifest, source_bucket, source_key, staging_prefix, use
         "staging_thumbnail_url": f"{staging_url_path}{thumbnail}" if thumbnail else "",
         "source_bucket": source_bucket,
         "source_key": source_key,
+        "created_at": now,
         "updated_at": now,
         "status": "pending_review",
     }
     if user_sub:
         item["source_user_sub"] = user_sub
 
-    table = dynamodb.Table(CATALOG_TABLE)
-    existing_created_at = get_existing_created_at(table, game_id)
-    item["created_at"] = existing_created_at or now
+    table = dynamodb.Table(SUBMISSIONS_TABLE)
     table.put_item(Item=to_dynamodb_item(item))
     return item
-
-
-def get_existing_created_at(table, game_id):
-    try:
-        response = table.get_item(Key={"game_id": game_id}, ProjectionExpression="created_at")
-    except ClientError:
-        LOG.exception("Unable to read existing catalog item for %s", game_id)
-        return None
-
-    return response.get("Item", {}).get("created_at")
 
 
 def to_dynamodb_item(value):
