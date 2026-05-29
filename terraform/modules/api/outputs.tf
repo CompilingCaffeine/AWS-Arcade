@@ -9,21 +9,21 @@ output "api_id" {
 }
 
 output "function_name" {
-  description = "request-upload-url Lambda function name."
-  value       = aws_lambda_function.request_upload_url.function_name
+  description = "presign Lambda function name."
+  value       = module.presign.function_name
 }
 
 output "function_arn" {
-  description = "request-upload-url Lambda function ARN."
-  value       = aws_lambda_function.request_upload_url.arn
+  description = "presign Lambda function ARN."
+  value       = module.presign.function_arn
 }
 
 output "my_uploads_function_name" {
   description = "my_uploads Lambda function name."
-  value       = aws_lambda_function.my_uploads.function_name
+  value       = module.my_uploads.function_name
 }
 
 output "admin_handler_function_name" {
   description = "admin_handler Lambda function name."
-  value       = aws_lambda_function.admin_handler.function_name
+  value       = module.admin_handler.function_name
 }
